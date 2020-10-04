@@ -20,13 +20,14 @@ import numpy as np, math
 
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, root_dir)
-import utils.load_graph as load_graph
-import utils.vis as vis
-import utils.distortions as dis
-import graph_helpers as gh
-import mds_warmstart
-from hyperbolic_models import ProductEmbedding
-from hyperbolic_parameter import RParameter
+import src.hyperbolics.utils.load_graph as load_graph
+import src.hyperbolics.utils.vis as vis
+import src.hyperbolics.utils.distortions as dis
+from src.hyperbolics.pytorch.hyperbolic_models import ProductEmbedding
+from src.hyperbolics.pytorch.hyperbolic_parameter import RParameter
+
+from . import graph_helpers as gh
+
 
 
 # This describes a hyperbolic optimizer in Pytorch. It requires two modifications:
@@ -436,12 +437,10 @@ def learn(dataset, dim=2, hyp=1, edim=1, euc=0, sdim=1, sph=0, scale=1., riemann
         m_init = None
         if warm_start:
             # load from DataFrame; assume that the julia combinatorial embedding has been saved
-            ws_data = pandas.read_csv(warm_start, index_col=0).as_matrix()
-            scale = ws_data[0, ws_data.shape[1]-1]
-            m_init = torch.DoubleTensor(ws_data[:,range(ws_data.shape[1]-1)])
+            raise NotImplementedError("Removed from this branch")
         elif use_hmds:
             # m_init = torch.DoubleTensor(mds_warmstart.get_normalized_hyperbolic(mds_warmstart.get_model(dataset,dim,scale)[1]))
-            m_init = torch.DoubleTensor(mds_warmstart.get_model(dataset,dim,scale)[1])
+            raise NotImplementedError("Removed from this branch")
 
         logging.info(f"\t Warmstarting? {warm_start} {m_init.size() if warm_start else None} {G.order()}")
         initial_scale = z.dataset.max_dist / 3.0
