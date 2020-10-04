@@ -133,11 +133,14 @@ class GraphRowSubSampler(torch.utils.data.Dataset):
 
 
 class GraphRowSampler(torch.utils.data.Dataset):
-    def __init__(self, G, scale, use_cache=True):
+    def __init__(self, G, scale, use_cache=True, construct_distance_matrix=False):
         self.graph = nx.to_scipy_sparse_matrix(G, nodelist=list(range(G.order())))
         self.n     = G.order()
         self.scale = scale
         self.cache = dict() if use_cache else None
+        if construct_distance_matrix:
+            self.distance_matrix = self._construct_distance_matrix()
+
 
     def __getitem__(self, index):
         h = None
@@ -156,9 +159,59 @@ class GraphRowSampler(torch.utils.data.Dataset):
 
     def __len__(self): return self.n
 
+    def get_distances(self,input_ids):
+        return self.distance_matrix[input_ids]
+        
     def __repr__(self):
         return f"DATA: {self.n} points with scale {self.scale}"
+    
+    def _construct_distance_matrix(self):
+        return floyd_warshall_numpy(self.graph)
 
+def floyd_warshall_numpy(G, nodelist=None, weight="weight"):
+    """Find all-pairs shortest path lengths using Floyd's algorithm.
+
+    Parameters
+    ----------
+    G : NetworkX graph
+
+    nodelist : list, optional
+       The rows and columns are ordered by the nodes in nodelist.
+       If nodelist is None then the ordering is produced by G.nodes().
+
+    weight: string, optional (default= 'weight')
+       Edge data key corresponding to the edge weight.
+
+    Returns
+    -------
+    distance : NumPy matrix
+        A matrix of shortest path distances between nodes.
+        If there is no path between to nodes the corresponding matrix entry
+        will be Inf.
+
+    Notes
+    ------
+    Floyd's algorithm is appropriate for finding shortest paths in
+    dense graphs or graphs with negative weights when Dijkstra's
+    algorithm fails. This algorithm can still fail if there are negative
+    cycles.  It has running time $O(n^3)$ with running space of $O(n^2)$.
+    """
+    try:
+        import numpy as np
+    except ImportError as e:
+        raise ImportError("to_numpy_array() requires numpy: http://numpy.org/ ") from e
+
+    # To handle cases when an edge has weight=0, we must make sure that
+    # nonedges are not given the value 0 as well.
+    A = nx.to_numpy_array(
+        G, nodelist=nodelist, multigraph_weight=min, weight=weight, nonedge=np.inf
+    )
+    n, m = A.shape
+    np.fill_diagonal(A, 0)  # diagonal elements should be zero
+    for i in range(n):
+        # The second term has the same shape as A due to broadcasting
+        A = np.minimum(A, A[i, :][np.newaxis, :] + A[:, i][:, np.newaxis])
+    return A
 
 def collate(ls):
     x, y = zip(*ls)
@@ -554,7 +607,7 @@ def learn(dataset, dim=2, hyp=1, edim=1, euc=0, sdim=1, sph=0, scale=1., riemann
 
     if log_name is not None:
         with open(log_name + '.stat', "w") as f:
-            f.write("Best-loss MAP dist wc Final-loss MAP dist wc me mc\n")
+            f.write("Best-loss MAP dist wc Final-_MAP dist wc me mc\n")
             f.write(f"{best_loss:10.6f} {best_map:8.4f} {best_dist:8.4f} {best_wcdist:8.4f} {l:10.6f} {final_map:8.4f} {final_dist:8.4f} {final_wc:8.4f} {final_me:8.4f} {final_mc:8.4f}")
 
     if visualize:
